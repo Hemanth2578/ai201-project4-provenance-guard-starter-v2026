@@ -228,18 +228,28 @@ def submit():
     except detector.DetectorUnavailable as exc:
         return jsonify({"error": "detector_unavailable", "message": str(exc)}), 503
 
-    # placeholders until milestones 4 and 5
+    # step 5 - second signal, the shape of the text
+    import stylometry
+    style_score = stylometry.style_signal(text)
+
+    # step 6 - combine them (the rule is in scoring.py::combine_signals)
+    import scoring
+    combined_score = scoring.combine_signals(model_score, style_score)
+
+    # placeholders until milestone 5
     guess = "unsure"
-    confidence = model_score
+    confidence = combined_score
     label = "PLACEHOLDER: label comes in milestone 5"
 
-    # step 4 - log the decision
+    # step 4 + 7 - log the decision with both signals and the combined score
     content_id = f"c_{uuid.uuid4().hex[:12]}"
     audit.log_decision(
         content_id=content_id,
         creator_id=creator_id,
         guess=guess,
         model_score=model_score,
+        style_score=style_score,
+        combined_score=combined_score,
         status="decided",
     )
 
@@ -251,7 +261,8 @@ def submit():
         "confidence": confidence,
         "label": label,
         "model_score": model_score,
-        "style_score": None,
+        "style_score": style_score,
+        "combined_score": combined_score,
     }), 200
 
 

@@ -72,9 +72,48 @@
 <!-- Write the rule in words, then give the numbers. What happens when the two
      signals disagree? -->
 
-**The rule:**
+**The rule:** Average the two signals. A text can only be called AI if *both*
+signals say AI on their own; if either one is below the AI threshold, the
+combined score is held just under that threshold, so the text lands in
+"unsure" at worst. There is no matching rule on the human side, on purpose: a
+wrong accusation costs the writer far more than a missed detection costs the
+site, so only the accusing side needs agreement.
 
 **The numbers:**
+
+| Setting | Value | Where |
+|---|---|---|
+| Model signal weight | 0.5 | `config.WEIGHT_MODEL_SIGNAL` |
+| Style signal weight | 0.5 | `config.WEIGHT_STYLE_SIGNAL` |
+| AI threshold (both signals must reach it for an AI label) | 0.65 | `config.AI_THRESHOLD` |
+| Cap when they don't both reach it | 0.65 − 0.01 = 0.64 | `config.AGREEMENT_MARGIN` |
+
+Equal weights because five calibration texts are not enough evidence to trust
+one signal over the other.
+
+Signal two's three measures, each mapped onto 0–1 (1 = AI-like) between two
+anchors taken from the calibration texts, then averaged with equal weight:
+
+| Measure | Scores 1.0 (AI) at | Scores 0.0 (human) at |
+|---|---|---|
+| Sentence length spread (stdev ÷ mean of words per sentence) | 0.30 | 1.00 |
+| Moving-average type-token ratio (40-word windows) | 0.95 | 0.80 |
+| Expressive punctuation (; : ( ) ! ? quotes, dashes) per 100 words | 0.0 | 4.0 |
+
+Type-token ratio runs the opposite way to what I expected: the AI text had the
+*most* varied vocabulary (0.94) and the casual human text less (0.83), because
+people repeat "I", "that", "it". A single-sentence submission has no spread to
+measure, so that part scores a neutral 0.5 instead of counting as AI.
+
+**Calibration run** (all five through `POST /submit`):
+
+| Input | model_score | style_score | combined |
+|---|---|---|---|
+| Clearly AI (`samples/clearly_ai.json`) | 0.754 | 0.930 | 0.842 |
+| Clearly human (`samples/clearly_human.json`) | 0.445 | 0.075 | 0.260 |
+| Formal human, the Gettysburg Address (`samples/formal_human.json`) | 0.727 | 0.601 | 0.640 (capped) |
+| Lightly-edited AI (`samples/edited_ai.json`) | 0.599 | 0.757 | 0.640 (capped) |
+| Borderline (`samples/borderline.json`) | 0.349 | 0.486 | 0.418 |
 
 **Where it lives:** `scoring.py::combine_signals`
 
@@ -82,6 +121,24 @@
      somewhere else, say where. -->
 
 **A case where my two signals split, and what my rule does with it:**
+
+The clearly-human sample: the model signal gave 0.445, close to unsure, while
+the style signal gave 0.075, strongly human. Its sentences run from 2 words to
+over 30 and it is full of dashes and quotation marks, which signal two reads as
+human, but its vocabulary is ordinary enough that the model found it fairly
+predictable. The average is 0.260, so it is labelled human. The agreement rule
+doesn't fire, because it only guards the AI side.
+
+The case the rule exists for is the Gettysburg Address. Both signals lean AI
+(0.727 and 0.601), and a plain average gives 0.664, which would call Lincoln
+a machine with high confidence. Because the style signal stays below 0.65, the
+score is capped at 0.64 and it reads "unsure". The model score is probably
+inflated because GPT-2 has seen this speech many times, which is its own blind
+spot: famous text is predictable to the model because it memorised it.
+
+The trade: the lightly-edited AI text is capped the same way (0.599 / 0.757 →
+0.64), so it gets "unsure" instead of "AI". That is AI text getting through,
+and I accept it as the cost of not accusing formal human writers.
 
 
 

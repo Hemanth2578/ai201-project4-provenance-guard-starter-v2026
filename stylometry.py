@@ -64,8 +64,19 @@ def sentence_length_spread(text: str) -> float:
     `stdev` raises on fewer than two values. Decide what that should return
     before the attack set decides for you.
     """
-    # TODO: replace this
-    return 0.0
+    # Coefficient of variation: stdev / mean of words per sentence.
+    # Scale: 0 upward. Calibration texts: AI ~0.4, casual human ~1.1.
+    # Direction: HIGHER = more human.
+    # Fewer than two sentences has no spread to measure; return 0.0 and let
+    # style_signal treat that case as "no evidence" rather than "AI".
+    lengths = [len(words(s)) for s in sentences(text)]
+    lengths = [n for n in lengths if n > 0]
+    if len(lengths) < 2:
+        return 0.0
+    return round(statistics.stdev(lengths) / statistics.mean(lengths), 4)
+
+
+MATTR_WINDOW = 40
 
 
 def type_token_ratio(text: str) -> float:
@@ -80,8 +91,25 @@ def type_token_ratio(text: str) -> float:
     directly comparable on it, and if your test inputs vary a lot in length,
     that alone can look like a signal.
     """
-    # TODO: replace this
-    return 0.0
+    # Moving-average TTR: the plain ratio over every 40-word window, averaged.
+    # That keeps a 300-word text comparable with a 60-word one.
+    # Direction: on my calibration texts HIGHER = more AI (0.94 AI vs 0.83
+    # human) - generated prose avoids repeating words, people repeat "I",
+    # "that", "it". The opposite of what I expected, so it's the measure to
+    # re-check first if the attack set surprises me.
+    w = words(text)
+    if not w:
+        return 0.0
+    if len(w) <= MATTR_WINDOW:
+        return round(len(set(w)) / len(w), 4)
+    windows = len(w) - MATTR_WINDOW + 1
+    total = sum(len(set(w[i:i + MATTR_WINDOW])) for i in range(windows))
+    return round(total / (windows * MATTR_WINDOW), 4)
+
+
+# Marks that vary between writers. Full stops and commas are left out:
+# everyone uses them, so they say little about who wrote the text.
+EXPRESSIVE_PUNCTUATION = re.compile(r"[;:()!?\"“”—–]|--")
 
 
 def punctuation_density(text: str) -> float:
@@ -94,8 +122,31 @@ def punctuation_density(text: str) -> float:
         more interesting than full stops, because they vary more between
         writers.
     """
-    # TODO: replace this
-    return 0.0
+    # Expressive marks (; : ( ) ! ? quotes, dashes) per 100 words.
+    # Calibration texts: AI 0.0, casual human ~4.3.
+    # Direction: HIGHER = more human.
+    w = words(text)
+    if not w:
+        return 0.0
+    marks = len(EXPRESSIVE_PUNCTUATION.findall(text))
+    return round(marks / len(w) * 100, 4)
+
+
+def _ramp(value: float, ai_end: float, human_end: float) -> float:
+    """
+    Map a raw measure onto 0-1, where 1 = AI-like.
+
+    `ai_end` is the value that scores 1.0, `human_end` the value that scores
+    0.0; anything beyond either end is clipped. Works in either direction.
+    """
+    position = (value - human_end) / (ai_end - human_end)
+    return min(max(position, 0.0), 1.0)
+
+
+# Anchors from the calibration texts in samples/ (README, Signals and Scoring).
+SPREAD_AI, SPREAD_HUMAN = 0.3, 1.0      # coefficient of variation
+TTR_AI, TTR_HUMAN = 0.95, 0.80          # moving-average TTR
+PUNCT_AI, PUNCT_HUMAN = 0.0, 4.0        # expressive marks per 100 words
 
 
 # ── Combining them ───────────────────────────────────────────────────────────
@@ -122,8 +173,17 @@ def style_signal(text: str) -> float:
     you trust it. Plain and ordinary, not formal: formal prose reads as *human*
     to signal one, and it is plain writing that gets accused.
     """
-    # TODO: replace this
-    return 0.5
+    # Each measure is ramped onto 0-1 (1 = AI-like) between the anchors
+    # above, then the three are averaged with equal weight - I have no
+    # evidence yet that one is more trustworthy than the others.
+    if len(sentences(text)) < 2:
+        spread_part = 0.5   # one sentence: no evidence either way
+    else:
+        spread_part = _ramp(sentence_length_spread(text), SPREAD_AI, SPREAD_HUMAN)
+    ttr_part = _ramp(type_token_ratio(text), TTR_AI, TTR_HUMAN)
+    punct_part = _ramp(punctuation_density(text), PUNCT_AI, PUNCT_HUMAN)
+
+    return round((spread_part + ttr_part + punct_part) / 3, 4)
 
 
 if __name__ == "__main__":

@@ -57,6 +57,11 @@ DETECTOR_MAX_TOKENS = 400
 WEIGHT_MODEL_SIGNAL = 0.5
 WEIGHT_STYLE_SIGNAL = 0.5
 
+# The AI label needs BOTH signals at or above AI_THRESHOLD. When they don't
+# agree, combine_signals caps the score this far below AI_THRESHOLD, which
+# lands it in "unsure". See scoring.py::combine_signals.
+AGREEMENT_MARGIN = 0.01
+
 
 # ─── Thresholds (Milestone 5) ────────────────────────────────────────────────
 # Where one label becomes another. Scores run 0.0 (confidently human) to 1.0

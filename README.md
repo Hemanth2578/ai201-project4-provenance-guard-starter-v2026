@@ -153,15 +153,33 @@ and I accept it as the cost of not accusing formal human writers.
 
 | Label | Score range | The exact text a reader sees |
 |---|---|---|
-| high-confidence human |  |  |
-| unsure |  |  |
-| high-confidence AI |  |  |
+| high-confidence human | 0.00 to 0.35 | We think this was written by a person. Nothing in it looked like AI-generated text to us. |
+| unsure | above 0.35, below 0.65 | We couldn't tell either way. Plenty of writing that people did entirely themselves lands here, so this is not a finding that AI was used, and nothing happens to your work because of it. If you think we've got it wrong, you can ask for a review. |
+| high-confidence AI | 0.65 to 1.00 | This reads very much like AI-generated text. This is an automated guess, not proof, and it can be wrong, especially for plain or very formal writing. If you wrote this yourself, you can appeal and a person will review it. |
+
+All three are reachable: `samples/clearly_human.json` scores 0.260 (human),
+`samples/borderline.json` 0.418 (unsure) and `samples/clearly_ai.json` 0.842
+(AI). Any score where the two signals disagree is held at 0.64 by
+`combine_signals`, which is inside "unsure".
+
+**What `confidence` means in the response:** how far the score leans, not
+which way. It is the distance from 0.5 doubled onto 0–1, so 0 is a coin flip
+and 1 is as sure as the system gets. A score of 0.10 and a score of 0.90 both
+give confidence 0.80, in opposite directions; `guess` says which.
 
 **Why I worded the "unsure" one this way:**
 <!-- It's the hardest of the three. It has to admit uncertainty without
      sounding like an accusation, because the person reading it may well have
      written every word themselves. -->
 
+The person reading it most likely wrote every word, and "unsure" is where my
+agreement rule sends the formal and plain writers both signals struggle with.
+So it says plainly that this is *not* a finding of AI use, says nothing happens
+to their work because of it, and tells them how to push back. I left out
+"possibly AI" or "may have been generated": to a writer who did the work
+themselves, those read as an accusation with a hedge on it. I also avoided any
+number, because "0.52" means nothing to someone who has never heard of a
+threshold and sounds more precise than the system is.
 
 
 ---
@@ -178,9 +196,6 @@ and I accept it as the cost of not accusing formal human writers.
      two off the response, so leaving them out costs you next unit's
      diagnostics. -->
 
-<!-- Milestone 3 run: one signal only. style_score is null and guess/label are
-     placeholders until milestones 4 and 5. Replace with the final run then. -->
-
 ```bash
 $ curl -X POST http://127.0.0.1:5000/submit \
   -H "Content-Type: application/json" \
@@ -189,13 +204,14 @@ $ curl -X POST http://127.0.0.1:5000/submit \
 
 ```json
 {
-  "confidence": 0.7544,
-  "content_id": "c_96a4d6192370",
+  "combined_score": 0.8419,
+  "confidence": 0.6838,
+  "content_id": "c_a9421a6b5300",
   "creator_id": "demo_instructor",
-  "guess": "unsure",
-  "label": "PLACEHOLDER: label comes in milestone 5",
+  "guess": "ai",
+  "label": "This reads very much like AI-generated text. This is an automated guess, not proof, and it can be wrong, especially for plain or very formal writing. If you wrote this yourself, you can appeal and a person will review it.",
   "model_score": 0.7544,
-  "style_score": null
+  "style_score": 0.9295
 }
 ```
 
@@ -219,53 +235,63 @@ $ curl -X POST http://127.0.0.1:5000/submit \
 ```bash
 $ curl -X POST http://127.0.0.1:5000/appeal \
   -H "Content-Type: application/json" \
-  -d '{"content_id": "...", "reasoning": "..."}'
+  -d '{"content_id": "c_a9421a6b5300", "reasoning": "I wrote this myself for a work newsletter. I always write in this plain, structured way."}'
 ```
 
 ```json
+{
+  "content_id": "c_a9421a6b5300",
+  "message": "Thanks. Your appeal is recorded and this result is now under review by a person. Your reasons are saved with it.",
+  "original_guess": "ai",
+  "status": "under_review"
+}
+```
 
+An appeal on a content_id that doesn't exist gets a 404 instead of failing
+silently, and is logged as a rejection:
+
+```bash
+$ curl -X POST http://127.0.0.1:5000/appeal \
+  -H "Content-Type: application/json" \
+  -d '{"content_id": "c_doesnotexist", "reasoning": "mine"}'
+```
+
+```json
+{
+  "error": "not_found",
+  "message": "No submission with content_id 'c_doesnotexist'. Check it matches the one in your result exactly."
+}
 ```
 
 **What the log shows afterwards**
 
 ```bash
-$ curl "http://127.0.0.1:5000/log?limit=3"
+$ curl "http://127.0.0.1:5000/log?limit=6"
 ```
+
+The two entries for `c_a9421a6b5300`: the original decision, untouched, and
+the appeal after it with the new status.
 
 ```json
 {
-  "count": 3,
-  "entries": [
-    {
-      "combined_score": null,
-      "content_id": "c_96a4d6192370",
-      "creator_id": "demo_instructor",
-      "guess": "unsure",
-      "label": null,
-      "model_score": 0.7544,
-      "status": "decided",
-      "style_score": null,
-      "timestamp": "2026-10-31T00:15:54+00:00"
-    },
-    {
-      "combined_score": null,
-      "content_id": "c_8c684bd8ecbc",
-      "creator_id": "demo_instructor",
-      "guess": "unsure",
-      "label": null,
-      "model_score": 0.4445,
-      "status": "decided",
-      "style_score": null,
-      "timestamp": "2026-10-31T00:15:55+00:00"
-    },
-    {
-      "creator_id": "me",
-      "event": "rejected",
-      "reason": "missing_text",
-      "status": "rejected",
-      "timestamp": "2026-10-31T00:15:55+00:00"
-    }
-  ]
+  "combined_score": 0.8419,
+  "confidence": 0.6838,
+  "content_id": "c_a9421a6b5300",
+  "creator_id": "demo_instructor",
+  "guess": "ai",
+  "label": "This reads very much like AI-generated text. This is an automated guess, not proof, and it can be wrong, especially for plain or very formal writing. If you wrote this yourself, you can appeal and a person will review it.",
+  "model_score": 0.7544,
+  "status": "decided",
+  "style_score": 0.9295,
+  "timestamp": "2026-10-31T00:32:34+00:00"
+},
+{
+  "content_id": "c_a9421a6b5300",
+  "creator_id": "demo_instructor",
+  "event": "appeal",
+  "reasoning": "I wrote this myself for a work newsletter. I always write in this plain, structured way.",
+  "status": "under_review",
+  "timestamp": "2026-10-31T00:32:34+00:00"
 }
 ```
 

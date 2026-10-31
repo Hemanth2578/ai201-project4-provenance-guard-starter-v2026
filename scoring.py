@@ -97,12 +97,45 @@ def score_to_label(score: float) -> tuple[str, str]:
     think if they got it on their own work. That question is the whole
     milestone.
     """
-    # TODO: replace this — thresholds are in config.py
+    # The AI check comes first, but the bands can't overlap: combine_signals
+    # holds any score where the signals disagree just under AI_THRESHOLD.
     if score >= config.AI_THRESHOLD:
-        return "ai", "PLACEHOLDER — write the high-confidence AI label."
+        return "ai", LABEL_AI
     if score <= config.HUMAN_THRESHOLD:
-        return "human", "PLACEHOLDER — write the high-confidence human label."
-    return "unsure", "PLACEHOLDER — write the unsure label."
+        return "human", LABEL_HUMAN
+    return "unsure", LABEL_UNSURE
+
+
+# The exact text a reader sees. Kept here so the README can quote it word for
+# word.
+LABEL_HUMAN = (
+    "We think this was written by a person. Nothing in it looked like "
+    "AI-generated text to us."
+)
+LABEL_UNSURE = (
+    "We couldn't tell either way. Plenty of writing that people did entirely "
+    "themselves lands here, so this is not a finding that AI was used, and "
+    "nothing happens to your work because of it. If you think we've got it "
+    "wrong, you can ask for a review."
+)
+LABEL_AI = (
+    "This reads very much like AI-generated text. This is an automated guess, "
+    "not proof, and it can be wrong, especially for plain or very formal "
+    "writing. If you wrote this yourself, you can appeal and a person will "
+    "review it."
+)
+
+
+def confidence_for(score: float) -> float:
+    """
+    How sure the guess is, from 0 (a coin flip) to 1 (as sure as it gets).
+
+    The combined score says which way the text leans; this says how far it
+    leans. 0.5 is the middle, so the distance from 0.5 is doubled onto 0-1.
+    A score of 0.1 and a score of 0.9 are equally confident guesses, in
+    opposite directions.
+    """
+    return round(abs(score - 0.5) * 2, 4)
 
 
 def label_ranges() -> list[tuple[str, str]]:

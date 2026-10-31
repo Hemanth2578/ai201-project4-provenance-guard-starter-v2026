@@ -121,14 +121,40 @@
      two off the response, so leaving them out costs you next unit's
      diagnostics. -->
 
+<!-- Milestone 3 run: one signal only. style_score is null and guess/label are
+     placeholders until milestones 4 and 5. Replace with the final run then. -->
+
 ```bash
 $ curl -X POST http://127.0.0.1:5000/submit \
   -H "Content-Type: application/json" \
-  -d '{"text": "...", "creator_id": "..."}'
+  -d @samples/clearly_ai.json
 ```
 
 ```json
+{
+  "confidence": 0.7544,
+  "content_id": "c_96a4d6192370",
+  "creator_id": "demo_instructor",
+  "guess": "unsure",
+  "label": "PLACEHOLDER: label comes in milestone 5",
+  "model_score": 0.7544,
+  "style_score": null
+}
+```
 
+Bad input is rejected with a 400 and still logged:
+
+```bash
+$ curl -X POST http://127.0.0.1:5000/submit \
+  -H "Content-Type: application/json" \
+  -d '{"text": "", "creator_id": "me"}'
+```
+
+```json
+{
+  "error": "bad_request",
+  "message": "Send JSON with a non-empty 'text'."
+}
 ```
 
 **An appeal**
@@ -150,7 +176,40 @@ $ curl "http://127.0.0.1:5000/log?limit=3"
 ```
 
 ```json
-
+{
+  "count": 3,
+  "entries": [
+    {
+      "combined_score": null,
+      "content_id": "c_96a4d6192370",
+      "creator_id": "demo_instructor",
+      "guess": "unsure",
+      "label": null,
+      "model_score": 0.7544,
+      "status": "decided",
+      "style_score": null,
+      "timestamp": "2026-10-31T00:15:54+00:00"
+    },
+    {
+      "combined_score": null,
+      "content_id": "c_8c684bd8ecbc",
+      "creator_id": "demo_instructor",
+      "guess": "unsure",
+      "label": null,
+      "model_score": 0.4445,
+      "status": "decided",
+      "style_score": null,
+      "timestamp": "2026-10-31T00:15:55+00:00"
+    },
+    {
+      "creator_id": "me",
+      "event": "rejected",
+      "reason": "missing_text",
+      "status": "rejected",
+      "timestamp": "2026-10-31T00:15:55+00:00"
+    }
+  ]
+}
 ```
 
 ---

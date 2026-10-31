@@ -200,52 +200,59 @@ def submit():
     a malformed input is one of the most common real failures there is.
     """
 
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    # A bare list or string parses as JSON but has no .get
+    if not isinstance(payload, dict):
+        payload = {}
+
+    # step 2: JSON goes in: pull text and creator_id out of the body
     text = payload.get("text", "")
     creator_id = payload.get("creator_id", "unknown")
 
-    # step 2: JSON goes in: pull text and creator_id out of the body
     if not isinstance(text, str) or not text.strip():
+        audit.log_rejection(creator_id=str(creator_id), reason="missing_text")
         return jsonify({
             "error": "bad_request",
-            "message": "Send JSON with a non-empty \'text\'.",
+            "message": "Send JSON with a non-empty 'text'.",
         }), 400
 
     # step 3 - one real signal that we first tested from terminal
     # python detector.py "some text"
     import detector
-    model_score = detector.model_signal(text)
+    try:
+        model_score = detector.model_signal(text)
+    except ValueError as exc:
+        # fewer than 3 tokens - the model has nothing to be surprised by
+        audit.log_rejection(creator_id=str(creator_id), reason="text_too_short")
+        return jsonify({"error": "bad_request", "message": str(exc)}), 400
+    except detector.DetectorUnavailable as exc:
+        return jsonify({"error": "detector_unavailable", "message": str(exc)}), 503
+
+    # placeholders until milestones 4 and 5
+    guess = "unsure"
+    confidence = model_score
+    label = "PLACEHOLDER: label comes in milestone 5"
 
     # step 4 - log the decision
     content_id = f"c_{uuid.uuid4().hex[:12]}"
     audit.log_decision(
-        content_id = content_id,
-        creator_id = creator_id,
-        model_score = model_score,
-        status = "decided",
+        content_id=content_id,
+        creator_id=creator_id,
+        guess=guess,
+        model_score=model_score,
+        status="decided",
     )
 
-     # step 1: return the response
+    # step 1: return the response
     return jsonify({
         "content_id": content_id,
         "creator_id": creator_id,
-        "guess": "unsure",
-        "confidence": model_score,
-        "label": "unknown",
+        "guess": guess,
+        "confidence": confidence,
+        "label": label,
         "model_score": model_score,
         "style_score": None,
     }), 200
-
-    
-    # TODO: delete this and build the route.
-    # return jsonify({
-    #     "error": "not_implemented",
-    #     "message": "POST /submit isn't built yet — see the TODO in app.py.",
-    #     "you_sent": {
-    #         "text_length": len(payload.get("text", "")),
-    #         "creator_id": payload.get("creator_id"),
-    #     },
-    # }), 501
 
 
 @app.post("/appeal")

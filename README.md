@@ -39,7 +39,30 @@
 <!-- The path a submission takes, from arriving to the label a reader sees.
      Six or seven steps — this is the trace you wrote in Milestone 1. -->
 
-
+1. **`POST /submit` receives it** (`app.py::submit`). It pulls `text` and
+   `creator_id` out of the JSON. If the body isn't a JSON object, or `text` is
+   missing, empty or too short to score, it answers `400` and writes a
+   `rejected` entry to the log. Nothing goes further.
+2. **Signal one reads it** (`detector.model_signal`). GPT-2, running locally,
+   measures how predictable the text is and turns that into `model_score`,
+   0 to 1, higher meaning more AI-like.
+3. **Signal two measures its shape** (`stylometry.style_signal`). Sentence
+   length spread, vocabulary variety and expressive punctuation become
+   `style_score`, on the same 0 to 1 scale.
+4. **The two are combined** (`scoring.combine_signals`). An even average,
+   except that the score can only reach the AI band if both signals reach it
+   on their own. This adds the single `combined_score`.
+5. **The score becomes words** (`scoring.score_to_label`,
+   `scoring.confidence_for`). This adds `guess` (human, unsure or ai), the
+   full sentence the writer reads, and `confidence`, how far the score leans
+   away from a coin flip.
+6. **The decision is logged** (`audit.log_decision`). It gets a new
+   `content_id` and one line in `logs/audit.jsonl` with both signal scores, the
+   combined score, the guess, the label and `status: decided`.
+7. **The writer gets the answer**, as JSON with all of the above. If they think
+   it's wrong, they send that `content_id` and their reasons to `POST /appeal`,
+   which checks the id is real, appends an appeal entry with
+   `status: under_review` after the original decision, and confirms.
 
 ---
 
@@ -53,19 +76,46 @@
 
 ### Signal one — the model signal
 
-**What it measures:**
+**What it measures:** How predictable the text is to a language model.
+GPT-2 reads the first 400 tokens and reports its perplexity, how surprised it
+was on average by each next word. That is squashed onto 0 to 1 so that a
+perplexity of 45 scores 0.5 and lower perplexity scores higher (more AI-like).
 
-**Why that might differ between human and AI writing:**
+**Why that might differ between human and AI writing:** A language model
+generates text by picking likely next words, so its output is the kind of text
+a model finds easy to predict. People make less likely choices: an odd word, a
+fragment, a joke, a sudden change of direction.
 
-**What it can't see:**
+**What it can't see:** Who wrote the text. It measures predictability, and
+plenty of human writing is predictable: plain writing, second-language writing
+that sticks to safe vocabulary, a younger writer, anyone writing simply on
+purpose. It also rewards text the model has *memorised*: the Gettysburg Address
+scored 0.727, more AI-like than some AI text, because GPT-2 has seen it many
+times. In the other direction, AI text full of rare words reads as human. And
+anything past the first 400 tokens is never read at all.
 
 ### Signal two — the style signal
 
-**What it measures:**
+**What it measures:** The shape of the text, without reading it. Three
+measures, each mapped onto 0 to 1 and averaged: how much sentence length
+varies (stdev over mean), how varied the vocabulary is (type-token ratio over
+40-word windows), and how often the writer uses expressive punctuation (; : ( )
+! ? quotation marks and dashes) per 100 words.
 
-**Why that might differ between human and AI writing:**
+**Why that might differ between human and AI writing:** Generated prose tends
+toward even, mid-length sentences and tidy punctuation: full stops and commas,
+rarely a dash or a bracket. People are lumpier, with a two-word sentence next to
+a thirty-word one, and asides in dashes and quotes. On my samples AI text also
+had the *most* varied vocabulary, because people repeat "I", "that" and "it"
+where a model reaches for a synonym.
 
-**What it can't see:**
+**What it can't see:** Meaning. Anything that changes the shape without
+changing the substance moves it: adding typos, chopping sentences up, dropping
+in a few dashes or a quotation. That is cheap to do on purpose. It also reads
+formal human writing as machine-like, because formal prose has even sentences
+and little expressive punctuation (the Gettysburg Address scored 0.601). Its
+ranges come from five sample texts, so they will not hold for every kind of
+writing, and a one-sentence submission gives it nothing to measure for spread.
 
 ### The combining rule
 
@@ -299,17 +349,36 @@ the appeal after it with the new status.
 
 ## How I Used AI
 
-**Moment 1**
+**Moment 1: the code**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I asked Claude (Claude Code) to finish the coding for
+  milestones 3 to 5: the `/submit` route with one signal and logging, then the
+  style signal and combining rule, then the labels and `/appeal`.
+- *What came back:* Working code for `app.py::submit` and `app.py::appeal`,
+  the three measures and `style_signal` in `stylometry.py`, and
+  `combine_signals`, `score_to_label` and `confidence_for` in `scoring.py`. It
+  measured the five sample texts before choosing the style signal's ranges,
+  and proposed the rule that both signals must agree before anything is
+  labelled AI.
+- *What I changed:* I asked for the style signal's ranges to be set from my own
+  `clearly_ai.json` and `clearly_human.json` only. When that was re-run, the
+  Gettysburg Address's style score rose from 0.601 to 0.654, just past 0.65, so
+  both signals counted as AI and it was labelled high-confidence AI. I reverted
+  that change and kept the original ranges, which leave it in "unsure".
 
-**Moment 2**
+**Moment 2: the wording of my criteria**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I first wrote my own drafts of criteria 1 to 3, which
+  were vague: one counted "reachable" pieces, which doesn't mean anything, and
+  one just restated the thresholds. I asked Claude for criterion templates to
+  choose from, then asked it to write the final wording.
+- *What came back:* Eleven templates across the five areas, with the numbers
+  and reasons left blank, then a full draft of the five I picked, with numbers
+  and a reason under each.
+- *What I changed:* I chose which five to use (plain-style writers, ordinary
+  writers getting a clean result, the average gap, every label reachable, long
+  text never scored in secret), which leaves out the appeal path on purpose.
+  I kept the drafted wording and numbers as written.
 
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 

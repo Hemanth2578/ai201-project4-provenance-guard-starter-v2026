@@ -216,6 +216,37 @@ def submit():
             "message": "Send JSON with a non-empty 'text'.",
         }), 400
 
+    # milestone 5 (unit 8) - validate the input before either signal sees it
+    if not isinstance(creator_id, str):
+        audit.log_rejection(creator_id=str(creator_id), reason="bad_creator_id")
+        return jsonify({
+            "error": "bad_request",
+            "message": "'creator_id' must be a string.",
+        }), 400
+
+    word_count = len(text.split())
+    if word_count > config.MAX_WORDS:
+        # the detector would silently score only the first 400 tokens
+        audit.log_rejection(creator_id=creator_id, reason="text_too_long",
+                            word_count=word_count)
+        return jsonify({
+            "error": "too_long",
+            "message": f"This is {word_count} words. We can check up to "
+                       f"{config.MAX_WORDS} at a time, so please send it in parts.",
+        }), 413
+
+    real_words = [w for w in text.split()
+                  if len(w) <= config.MAX_WORD_LENGTH and any(c.isalpha() for c in w)]
+    if len(real_words) < config.MIN_WORDS:
+        # punctuation, emoji, control characters, one giant word: not writing
+        audit.log_rejection(creator_id=creator_id, reason="not_enough_words",
+                            word_count=len(real_words))
+        return jsonify({
+            "error": "bad_request",
+            "message": f"We need at least {config.MIN_WORDS} words of actual "
+                       "writing to check.",
+        }), 400
+
     # step 3 - one real signal that we first tested from terminal
     # python detector.py "some text"
     import detector

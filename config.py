@@ -63,6 +63,21 @@ WEIGHT_STYLE_SIGNAL = 0.5
 AGREEMENT_MARGIN = 0.01
 
 
+# ─── Input validation (unit 8, Milestone 5) ──────────────────────────────────
+# Checked in app.py::submit before either signal sees the text.
+#
+# MAX_WORDS: the detector reads only DETECTOR_MAX_TOKENS (400) tokens and drops
+# the rest without saying so. 400 tokens is roughly 300 words; 250 leaves a
+# margin. Longer text gets a 413 instead of a verdict on its opening only.
+#
+# MIN_WORDS: a "word" is a run of characters with at least one letter, at most
+# MAX_WORD_LENGTH long. Punctuation, emoji, control characters and one giant
+# word all have fewer than MIN_WORDS of those, so they get a 400, not a label.
+MAX_WORDS = 250
+MIN_WORDS = 3
+MAX_WORD_LENGTH = 40
+
+
 # ─── Thresholds (Milestone 5) ────────────────────────────────────────────────
 # Where one label becomes another. Scores run 0.0 (confidently human) to 1.0
 # (confidently AI).

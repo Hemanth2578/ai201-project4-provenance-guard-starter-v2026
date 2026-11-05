@@ -380,6 +380,46 @@ the appeal after it with the new status.
   text never scored in secret), which leaves out the appeal path on purpose.
   I kept the drafted wording and numbers as written.
 
+**Unit 8, moment 1: the AI-generated test text**
+
+- *What I asked for:* AI text for the criteria that needed it: eight unedited
+  pieces for criterion 3 and the two AI inputs for criterion 4, from a chatbot
+  with one-line prompts. I also asked Claude to fill the second "unsure" input
+  for criterion 4.
+- *What came back:* Short fiction vignettes from the chatbot, and from Claude a
+  five-sentence piece mixing a generated register with casual sentences.
+- *What I changed:* Nothing in the texts. Claude pointed out that its "unsure"
+  piece wasn't rewritten by hand as criterion 4 says, and that fiction vignettes
+  against human book reviews mixes genre into criterion 3; both are noted under
+  the run log instead of hidden.
+
+**Unit 8, moment 2: completing the code**
+
+- *What I asked for:* I made the rate-limiting changes myself, then asked
+  Claude to complete the rest: rejection entries with the same nine fields as a
+  decision, `scenarios.py` for my five criteria, a field in `run_eval.py` so
+  criterion 3 could be measured, and the input validation that became my one
+  improvement.
+- *What came back:* `audit.log_rejection` writing the nine fields as nulls,
+  the scenarios with long bodies built to exact word counts, `combined_score`
+  added to each eval result, and three checks in `app.py::submit` with their
+  numbers in `config.py`.
+- *What I changed:* I chose input validation as the one fix, ran every attack
+  and eval run myself and shared the output, and checked that only the six
+  attacks it targeted changed.
+
+**Unit 8, moment 3: whether to revise a criterion**
+
+- *What I asked for:* After I'd worked out my verdicts, I asked why none of my
+  criteria should be revised.
+- *What came back:* The brief's rule applied to each of my five: a revision
+  only counts when a criterion can't be measured, and all five produced clear
+  numbers, so each miss stays a miss. Criterion 1 is too easy but not broken,
+  and criterion 3's problem is its inputs, not its wording.
+- *What I changed:* I checked that reasoning against the brief's two examples
+  and kept every criterion as written, naming criterion 1 as the one I'd
+  tighten.
+
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
 ---
@@ -1149,13 +1189,63 @@ and say so, which I didn't build.
 <!-- For each attack still getting through and each criterion still missed:
      what you'd do, and why you stopped. -->
 
+I stopped after one change because the milestone asks for one, measured
+cleanly. Everything below is still broken after it.
 
+**FP02, FP03, FP04, FP05, and the "John" input in criterion 4: human writers
+labelled AI.** Both signals read plain, careful writing as machine-like, so the
+agreement rule never steps in (causes 1 to 3). What I'd do first: stop signal
+two scoring short text as AI, by giving vocabulary variety and expressive
+punctuation a neutral 0.5 below about 80 words, the way spread already goes
+neutral for one sentence. Then re-fit signal one's midpoint and signal two's
+anchors on the 18 human reviews from my criteria, not on five calibration
+texts. Why I stopped: those changes move almost every score at once, so they'd
+need their own before and after run, and I'd already used this unit's one
+change.
+
+**EV01 to EV08 and EV10: AI text escaping the AI label.** My rule lets fooling
+either signal be enough. I could let one strongly AI signal carry the label when
+the other sits near the middle, but that is exactly the change that would label
+more FP03-style writers AI. Why I stopped: I'm deliberately not making the
+accusing side easier until the false positives above are fixed, so these stay
+broken by choice.
+
+**Criterion 2 (1 of 10 ordinary pieces labelled human).** The human band
+(0.35 and under) is narrower than where real reviews land (mean 0.52). The
+recalibration above is the real fix; widening the band to 0.45 would be the
+quick one, but it would also move some AI text from "unsure" to "human". Why I
+stopped: one change.
+
+**Criterion 3 (gap 0.07, target 0.30).** Part of this is my test: AI fiction
+against human book reviews. I'd re-run it with AI-generated book reviews before
+changing the system, to see how much of the gap is genre. Why I stopped: that's
+a new test set, and I ran out of time to collect it.
+
+**Criterion 4 (1 of 6 inputs on their intended label).** Its two "unsure"
+inputs don't match its own wording, so I'd replace them with AI text I rewrite
+by hand, then judge the human and AI inputs after the short-text fix above.
+Why I stopped: same as criterion 3.
+
+**Problems I created or left:**
+- The 250-word cap now turns away long human writing (two reviews in criterion
+  2). The proper fix is to score long text in 250-word chunks and report every
+  chunk, not to reject it.
+- The rate limit is per `creator_id`, which a script can change on every
+  request. Adding a per-address limit alongside it would catch that.
+- Criterion 1 is met only because it counts AI labels alone; I'd tighten it to
+  count high-confidence human labels.
 
 **The trade I'd make if this ran for real:**
 
 <!-- Two sentences. Fewer wrong accusations means more AI text getting through.
      Say which way you'd go and WHO PAYS FOR IT. -->
 
+I'd keep going the way I've built it, toward fewer wrong accusations, by
+holding the AI label back unless the evidence is strong and pointing everyone
+else to "unsure" and the appeal. More AI text gets through that way, and the
+people who pay are the site and the writers who compete honestly with
+AI-assisted work, which I'd rather ask of them than of the non-native and plain
+writers who pay for every false accusation with work they actually did.
 
 
 <!-- ═════════════════════════════════════════════════════════════════════

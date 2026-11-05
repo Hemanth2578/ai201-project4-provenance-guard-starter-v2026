@@ -386,7 +386,7 @@ the appeal after it with the new status.
 
 ## Rate Limiting
 
-**My limits:** ___ per minute, ___ per day
+**My limits:** 10 per minute, 200 per day
 
 **Why those numbers and not others:**
 <!-- Think about two people: a real writer submitting their own work a few
@@ -394,17 +394,40 @@ the appeal after it with the new status.
      thresholds. Your numbers have to be liveable for the first and hostile to
      the second. -->
 
+A real writer submits a piece, maybe edits it and checks again: a handful of
+requests in a busy minute, a few dozen on a heavy day. Ten a minute leaves room
+for quick resubmits after small edits without ever getting in their way, and
+200 a day is far more than anyone checks their own writing. A script mapping my
+thresholds needs hundreds or thousands of variations. At 10 a minute that
+script is slowed to a crawl, and 200 a day caps it at 200 probes per identity
+per day, which is not enough to trace where the 0.35 and 0.65 lines sit with
+any precision.
+
 **What a caller counts as:** <!-- per address, or per creator_id? They fail
 differently — one script can look like a thousand callers, and one household
 can look like one. -->
+
+Per `creator_id`, falling back to the IP address when a request has none
+(`app.py::rate_limit_key`). That is fair to a household or office sharing one
+address, since each writer gets their own allowance. The weakness is that
+`creator_id` is whatever the caller types: a script that sends a new one on
+every request never hits a limit at all. Per-address limiting would stop that
+script but would lump a whole shared network into one allowance.
 
 **The run of status codes when I pushed past it:**
 
 <!-- python run_attacks.py --flood 15 -->
 
 ```
+15 submissions as 'flood_tester' against http://127.0.0.1:5000
 
+200 200 200 200 200 200 200 200 200 200 429 429 429 429 429
+
+5 of 15 were rate limited.
 ```
+
+All 15 are in the log: 10 `decided` entries and 5 `rejected` entries with
+`"reason": "rate_limited", "limit": "10 per 1 minute"`.
 
 ---
 

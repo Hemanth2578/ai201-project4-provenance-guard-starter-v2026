@@ -947,6 +947,105 @@ Criterion 5, long text: all four bodies (249, 251, 1,000, 10,000 words).
 
      Look for a pattern. Five failures on one signal is one problem, not five. -->
 
+**Stability.** All three trials matched to four decimal places on every input,
+so nothing in the pipeline is unstable; every miss below is a property of the
+system, not noise.
+
+**Verdicts.** Criterion 1 MET; criteria 2, 3, 4 and 5 MISSED. Criterion 1
+needs an honest note: its target only counts the AI label, and all 8
+plain-style pieces landed in "unsure", none in "human". It was met because it
+asked too little. It's the one I'd tighten, to count high-confidence human
+labels the way criterion 2 does. I haven't revised any criterion: each could
+be measured and reached a clear verdict, so the misses stay misses.
+
+Seventeen broken attacks and four missed criteria come down to five causes.
+
+**1. Signal two reads short text as AI. (Stage: signal two.)** Two of its three
+measures are biased by length. Vocabulary variety is measured over 40-word
+windows; a text shorter than that barely repeats a word, so it scores near 1.0,
+the AI end (the "John" introduction 0.96, "Couldn't even finish" 1.00). And a
+short text rarely has a dash, a bracket or a quotation mark, so expressive
+punctuation scores 0, which maps to fully AI. Two equal-length sentences also
+give zero spread (the dosa text: spread 0.0, also fully AI). So short human
+writing starts from an AI-leaning style score of 0.58 to 0.85 before the model
+has a say. This is why criterion 4's two human inputs got "unsure" (style 0.58
+and 0.69) and part of why all 8 of criterion 1's short, plain pieces sat in the
+middle.
+
+**2. Signal one reads plain writing as AI and inventive writing as human.
+(Stage: signal one.)** It measures predictability, and that tracks register,
+not authorship. Plain, careful, rubric-shaped human writing is predictable:
+FP02 formal (model 0.739), FP03 non-native (0.805), FP04 student essay (0.833),
+FP05 technical docs (0.801), the "John" introduction (0.735), and review 3 of
+*The 5 Types of Wealth* (0.772). Inventive AI writing is not: the eight AI
+fiction vignettes in criterion 3 scored only 0.13 to 0.40, and criterion 4's two
+AI inputs 0.25 and 0.28, all on the human side. The evasions that went for
+signal one worked the same way: unusual words (EV04, 0.611), heavy human editing
+(EV05, 0.321), typos (EV01, 0.164), and text too short for the model to settle
+(EV08, 0.245).
+
+**3. The agreement rule makes the AI label as weak as the weaker signal, and
+does nothing when both are wrong together. (Stage: combining rule.)** The rule
+only lets a text be called AI if both signals reach 0.65. On the AI side, that
+means fooling *either* signal is enough to escape, and causes 1 and 2 mean one
+of them is usually fooled:
+- signal one fooled, signal two saying AI, then averaged or capped into
+  "unsure": EV01 (0.164 / 1.000), EV04 (0.611 / 1.000, capped at 0.64), EV05,
+  EV08 (0.245 / 1.000), all eight criterion 3 vignettes, and both criterion 4 AI
+  inputs.
+- signal two fooled, signal one saying AI: EV02, where broken-up sentences
+  raised spread (style 0.378); EV07, where punctuation padding raised expressive
+  punctuation (style 0.308); and EV06, one very long and one very short sentence
+  (0.539).
+- signal two *just* under the line, capped at 0.64: EV03 (0.666 / 0.617) and
+  EV10 (0.979 / 0.622).
+
+That is all nine broken evasions, and criterion 3: every AI piece was split,
+so the AI mean fell to 0.590 against a human mean of 0.520, a gap of 0.071
+instead of 0.30. On the human side the rule protects nobody whose two signals
+share a bias: plain or formal writing is predictable *and* evenly shaped, so
+both signals land above 0.65 together. That's FP02 to FP05 (all both-high,
+combined 0.70 to 0.79), the "John" introduction (0.735 / 0.849, combined 0.79,
+labelled AI against criterion 4), and review 3 in criterion 2 (0.772 / 0.691).
+The rule was built for FP03 and FP03 is exactly where it does nothing.
+
+**4. The human band is narrower than where human writing actually lands.
+(Stage: label mapping.)** "Human" needs a combined score of 0.35 or under, which
+needs both signals to read clearly human at once. Real reviews don't: in
+criterion 2 their model scores run 0.39 to 0.77 and style 0.22 to 0.90, so the
+combined scores sit 0.31 to 0.73, mean 0.52, and only one in ten made it under
+0.35. My ranges were set from five calibration texts, and ordinary writing sits
+in the middle of them, so the band I'd drawn for "human" is mostly empty.
+
+**5. The route checks the type of `text`, never its length or content, and
+never checks `creator_id`. (Stage: the route.)**
+- Length: there is no 250-word limit, so criterion 5 failed at 251, 1,000 and
+  10,000 words (all 200). The detector silently scores only the first 400
+  tokens: the 1,000- and 10,000-word bodies scored an identical 0.8315. MF08,
+  60,000 characters, is the same failure.
+- Content: anything that is a non-empty string gets scored as writing. MF04,
+  punctuation only, was labelled **human** (model 0.011, because GPT-2 can't
+  predict a run of symbols). MF05, one very long word, was labelled **AI** at
+  0.916 (model 0.998, because a repeated pattern is perfectly predictable).
+  Neither is writing, and both got a confident verdict.
+- `creator_id`: RQ06 sent an object, and it went into the log as
+  `{'id': 'x'}`, because only `text` is type-checked.
+
+**Test design, not the system.** Three things weaken what these runs show, and
+I'd fix them before trusting the numbers further:
+- criterion 3 compares AI fiction with human book reviews, so genre is mixed in
+  with authorship, and cause 2 suggests genre explains much of signal one's
+  part of the gap;
+- review 3 of *The 5 Types of Wealth* is a 2024 review that reads like AI
+  writing, so its AI label may not be a false positive at all;
+- criterion 4's two "unsure" inputs aren't AI text rewritten by hand (one is a
+  short human introduction, the other was written entirely by Claude).
+
+**The pattern.** Causes 1 to 3 are one problem seen from three sides: both
+signals measure *how* text is written (predictable, short, evenly shaped), and
+plainness looks like a machine to both of them, while my rule assumed their
+mistakes would be independent. Cause 4 follows from the same calibration, and
+cause 5 is a separate, simpler gap in the route.
 
 
 ---

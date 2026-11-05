@@ -1052,21 +1052,94 @@ cause 5 is a separate, simpler gap in the route.
 
 ## The Improvement
 
-**What I changed:**
+**What I changed:** Input validation in `app.py::submit`, before either
+signal sees the text. One change, three checks, numbers in `config.py`:
 
-**Which diagnosis pointed at it:**
+1. `creator_id` must be a string, or 400 (`bad_creator_id`).
+2. More than 250 words (`MAX_WORDS`) gets a **413** with "please send it in
+   parts", instead of a verdict on the first 400 tokens (`text_too_long`).
+3. Fewer than 3 real words (`MIN_WORDS`) gets a 400 (`not_enough_words`). A real
+   word contains at least one letter and is at most 40 characters
+   (`MAX_WORD_LENGTH`), so punctuation, emoji, control characters and one giant
+   word don't count. Letters in any script do, so right-to-left text still
+   gets scored.
+
+Every rejection is logged with `audit.log_rejection`. Nothing about either
+signal, the combining rule or the thresholds changed.
+
+**Which diagnosis pointed at it:** Cause 5, the route. It checked that `text`
+was a string and nothing else, so criterion 5 failed (long text silently scored
+on its first 400 tokens, shown by the 1,000- and 10,000-word bodies scoring an
+identical 0.8315), and four malformed attacks broke: MF04 and MF05 got a
+confident verdict on input that isn't writing, MF08 was cut short, and RQ06
+stored an object as a `creator_id`. I chose it over causes 1 to 4 because it is
+one stage, it can't move any score the signals produce, and so any difference
+between the runs is unambiguously this change.
 
 ### Attack Run — After
 
 <!-- Same format. `run_attacks.py --label after` -->
 
+`results/attack_run_2026-11-05_0826_after.md`, marked with the same rules as
+the before run.
 
+| Family | Attacks | Held before | Held after | Broke before | Broke after |
+|---|---|---|---|---|---|
+| evasion | 10 | 1 | 1 | 9 | 9 |
+| false_positive | 8 | 4 | 4 | 4 | 4 |
+| prompt_injection | 6 | 6 | 6 | 0 | 0 |
+| malformed | 20 | 16 | **20** | 4 | **0** |
+| flood_same_creator | 12 | 12 | 12 | 0 | 0 |
+| **total** | **56** | **39** | **43** | **17** | **13** |
 
-**Did it help, and how do I know:**
+Exactly six rows changed; the other 50 came back identical, score for score:
 
-<!-- Widening the unsure band usually fixes one problem and creates another.
-     Reporting that trade honestly is worth full credit. -->
+| ID | Targeting | Before | After | Verdict |
+|---|---|---|---|---|
+| MF03 | text is control characters | 200, unsure | 400 | HELD → HELD |
+| MF04 | text is only punctuation | 200, **human** | 400 | BROKE → **HELD** |
+| MF05 | text is a very long single word | 200, **ai** (0.916) | 400 | BROKE → **HELD** |
+| MF06 | text is emoji only | 200, unsure | 400 | HELD → HELD |
+| MF08 | text is 60,000 characters | 200, scored on 400 tokens | **413** | BROKE → **HELD** |
+| RQ06 | creator_id is an object | 200, object in the log | 400 | BROKE → **HELD** |
 
+MF07 (right-to-left script) is still scored, which is what I wanted.
+
+**My five criteria, before and after** (`run_eval.py --label before` and
+`--label after`, three trials each; all six runs were internally identical):
+
+| Criterion | Target | Before (×3) | After (×3) | Verdict before → after |
+|---|---|---|---|---|
+| 1. Plain-style human writing labelled AI | ≤ 1 of 8 | 0/8 | 0/8 | MET → MET |
+| 2. Ordinary human writing labelled human | ≥ 7 of 10 | 1/10 | 1/10 | MISSED → MISSED |
+| 3. Mean combined gap, AI minus human | ≥ 0.30 | 0.071 | 0.070 (6 human pieces) | MISSED → MISSED |
+| 4. Inputs on their intended label | 6 of 6 | 1/6 | 1/6 | MISSED → MISSED |
+| 5. Long text handled as specified | 4 of 4 | 1/4 | **4/4** | MISSED → **MET** |
+
+Criterion 5, after: the 249-word body was scored (200), and the 251-, 1,000-
+and 10,000-word bodies each got a 413 and a `text_too_long` entry in the log
+with its word count.
+
+**Did it help, and how do I know:** Yes, for exactly what it targeted, and
+no further. Criterion 5 went from 1/4 to 4/4, and the malformed family from 16
+to 20 held, so no input that isn't writing gets a verdict any more and nothing
+is scored in secret. I know it was this change and nothing else because the
+other 50 attacks and every score in criteria 1 to 4 are identical to the
+before runs.
+
+It didn't touch the problem that matters most. All four false positives
+(FP02 to FP05) and all nine broken evasions are unchanged, because they come
+from the signals and the combining rule (causes 1 to 3), which this change
+doesn't reach. The writer in FP03 is still told their work reads like AI.
+
+And it has a cost. Two genuine human reviews in criterion 2 (*The Hunger
+Games* reviews 2 and 7, about 300 and 430 words) used to be scored and now get
+a 413. Neither was labelled human before, so criterion 2's count stays 1/10,
+but two real writers are now turned away and asked to split their work, and
+the same two drop out of criterion 3, which now averages 6 human pieces
+instead of 8 (gap 0.070, barely different). A 250-word cap is short for a
+writing site; the honest fix for long work is to score it in 250-word chunks
+and say so, which I didn't build.
 
 
 ---

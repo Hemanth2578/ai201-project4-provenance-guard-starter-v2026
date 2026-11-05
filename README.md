@@ -698,17 +698,237 @@ them and the accusation.
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |
+| 1. Plain-style human writing labelled high-confidence AI | ≤ 1 of 8, every trial | 0/8 | 0/8 | 0/8 | MET |
+| 2. Ordinary human writing labelled high-confidence human | ≥ 7 of 10, every trial | 1/10 | 1/10 | 1/10 | MISSED |
+| 3. Mean combined score, 8 AI pieces minus 8 human pieces | ≥ 0.30, every trial | 0.071 | 0.071 | 0.071 | MISSED |
+| 4. Inputs landing on their intended label (2 per label) | 6 of 6, all 3 trials | 1/6 | 1/6 | 1/6 | MISSED |
+| 5. Long text handled as specified (249 scored; 251, 1,000, 10,000 → 413) | 4 of 4 | 1/4 | 1/4 | 1/4 | MISSED |
+
+All three trials were identical, score for score, which is expected: neither
+signal is random. Inputs are in `scenarios.py`. The human pieces are public
+reader reviews of *The Hunger Games* and *The 5 Types of Wealth*; the AI
+pieces are unedited chatbot fiction vignettes, so criterion 3 compares genres
+as well as authors. Criterion 4's two "unsure" inputs depart from its wording:
+one is a short human self-introduction and the other was written entirely by
+Claude, including the "rewritten" half. I added one line to `run_eval.py` so
+each result also records `combined_score`, which criterion 3 needs.
+
+Criterion 1 is MET only in the narrow sense its target names: none of the 8
+was called AI, but none was called human either. All 8 landed in "unsure"
+(combined 0.44 to 0.62).
+
+Criterion 3, from the same trial: AI mean 0.590, human mean 0.520. The AI
+pieces' model scores were 0.13 to 0.40 (read as human) while their style
+scores were 0.79 to 0.98 (read as AI), so every one was split and pulled to
+the middle.
+
+Criterion 4: the two human inputs got "unsure" (0.43, 0.54); the "John"
+self-introduction got **ai** (0.79); the garden piece got "unsure" as
+intended; both AI inputs got "unsure" (0.57, 0.64). No label was produced by
+both of its inputs.
+
+Criterion 5: all four got 200. The 249- and 251-word bodies scored the same
+0.8309, and the 1,000- and 10,000-word bodies the same 0.8315, which shows
+nothing past the model's first 400 tokens changed the score.
 
 **Real output from one trial**, pasted as text, naming the file and function
 that produced it:
 
-```json
+From `results/run_2026-11-04_2151_before.md`, trial 1, written by `run_eval.py::main`; each result is the response from `app.py::submit`.
 
+Criterion 1, plain-style human writing: two of the eight (the "Sorry, guys" review and the two-sentence "Couldn't even finish").
+
+```json
+[
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.115,
+    "model_score": 0.6435,
+    "style_score": 0.2416,
+    "combined_score": 0.4425,
+    "label": "We couldn't tell either way. Plenty of writing that people did entirely themselves lands here, so this is not a finding that AI was used, and nothing happens to your work because of it. If you think we've got it wrong, you can ask for a review.",
+    "sent": "Sorry, guys. I know that this book has been such a huge hit, but I jus"
+  },
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.0818,
+    "model_score": 0.2076,
+    "style_score": 0.7105,
+    "combined_score": 0.4591,
+    "label": "We couldn't tell either way. Plenty of writing that people did entirely themselves lands here, so this is not a finding that AI was used, and nothing happens to your work because of it. If you think we've got it wrong, you can ask for a review.",
+    "sent": "Couldn't even finish. Dude set out to prioritize what was important in"
+  }
+]
+```
+
+Criterion 2, ordinary human writing: the one labelled human, and the one labelled AI (review 3 of *The 5 Types of Wealth*).
+
+```json
+[
+  {
+    "status": 200,
+    "guess": "human",
+    "confidence": 0.3872,
+    "model_score": 0.3944,
+    "style_score": 0.2183,
+    "combined_score": 0.3064,
+    "label": "We think this was written by a person. Nothing in it looked like AI-generated text to us.",
+    "sent": "\"The Most Dangerous Game\" meets Survivor. I loved it: deft characteriz"
+  },
+  {
+    "status": 200,
+    "guess": "ai",
+    "confidence": 0.4632,
+    "model_score": 0.772,
+    "style_score": 0.6911,
+    "combined_score": 0.7316,
+    "label": "This reads very much like AI-generated text. This is an automated guess, not proof, and it can be wrong, especially for plain or very formal writing. If you wrote this yourself, you can appeal and a person will review it.",
+    "sent": "The Hunger Games felt like the dawning of an era; it was my introducti"
+  }
+]
+```
+
+Criterion 3, AI vs human gap: two of the AI vignettes, showing the signals splitting.
+
+```json
+[
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.28,
+    "model_score": 0.3539,
+    "style_score": 0.9309,
+    "combined_score": 0.64,
+    "label": "We couldn't tell either way. Plenty of writing that people did entirely themselves lands here, so this is not a finding that AI was used, and nothing happens to your work because of it. If you think we've got it wrong, you can ask for a review.",
+    "sent": "At the edge of a quiet seaside town, a tiny bookstore opened only when"
+  },
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.0458,
+    "model_score": 0.1306,
+    "style_score": 0.9151,
+    "combined_score": 0.5229,
+    "label": "We couldn't tell either way. Plenty of writing that people did entirely themselves lands here, so this is not a finding that AI was used, and nothing happens to your work because of it. If you think we've got it wrong, you can ask for a review.",
+    "sent": "The robot had been designed to organize kitchen cabinets, yet it devel"
+  }
+]
+```
+
+Criterion 4, every label reachable: all six, in order human, human, unsure, unsure, ai, ai.
+
+```json
+[
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.1444,
+    "model_score": 0.2716,
+    "style_score": 0.5841,
+    "combined_score": 0.4278,
+    "label": "We couldn't tell either way. Plenty of writing that people did entirely themselves lands here, so this is not a finding that AI was used, and nothing happens to your work because of it. If you think we've got it wrong, you can ask for a review.",
+    "sent": "'Fiction' is the most beloved genre to the young generation. Whether i"
+  },
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.0808,
+    "model_score": 0.3864,
+    "style_score": 0.6944,
+    "combined_score": 0.5404,
+    "label": "We couldn't tell either way. Plenty of writing that people did entirely themselves lands here, so this is not a finding that AI was used, and nothing happens to your work because of it. If you think we've got it wrong, you can ask for a review.",
+    "sent": "If there is one dish for breakfast that everyone loves here is Bangalo"
+  },
+  {
+    "status": 200,
+    "guess": "ai",
+    "confidence": 0.5846,
+    "model_score": 0.7353,
+    "style_score": 0.8493,
+    "combined_score": 0.7923,
+    "label": "This reads very much like AI-generated text. This is an automated guess, not proof, and it can be wrong, especially for plain or very formal writing. If you wrote this yourself, you can appeal and a person will review it.",
+    "sent": "My name is John. I'm a Software Engineer at Google. Outside work, I sp"
+  },
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.1514,
+    "model_score": 0.219,
+    "style_score": 0.9324,
+    "combined_score": 0.5757,
+    "label": "We couldn't tell either way. Plenty of writing that people did entirely themselves lands here, so this is not a finding that AI was used, and nothing happens to your work because of it. If you think we've got it wrong, you can ask for a review.",
+    "sent": "The community garden behind the library reopened this spring after a l"
+  },
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.1488,
+    "model_score": 0.2493,
+    "style_score": 0.8995,
+    "combined_score": 0.5744,
+    "label": "We couldn't tell either way. Plenty of writing that people did entirely themselves lands here, so this is not a finding that AI was used, and nothing happens to your work because of it. If you think we've got it wrong, you can ask for a review.",
+    "sent": "The train arrived at a station that didn’t appear on any map. Curious "
+  },
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.28,
+    "model_score": 0.2831,
+    "style_score": 1.0,
+    "combined_score": 0.64,
+    "label": "We couldn't tell either way. Plenty of writing that people did entirely themselves lands here, so this is not a finding that AI was used, and nothing happens to your work because of it. If you think we've got it wrong, you can ask for a review.",
+    "sent": "Every morning, a red balloon appeared outside Daniel’s apartment windo"
+  }
+]
+```
+
+Criterion 5, long text: all four bodies (249, 251, 1,000, 10,000 words).
+
+```json
+[
+  {
+    "status": 200,
+    "guess": "ai",
+    "confidence": 0.6618,
+    "model_score": 0.9952,
+    "style_score": 0.6667,
+    "combined_score": 0.8309,
+    "label": "This reads very much like AI-generated text. This is an automated guess, not proof, and it can be wrong, especially for plain or very formal writing. If you wrote this yourself, you can appeal and a person will review it.",
+    "sent": "The district held its breath as the names were drawn, and nobody in th"
+  },
+  {
+    "status": 200,
+    "guess": "ai",
+    "confidence": 0.6618,
+    "model_score": 0.9952,
+    "style_score": 0.6667,
+    "combined_score": 0.8309,
+    "label": "This reads very much like AI-generated text. This is an automated guess, not proof, and it can be wrong, especially for plain or very formal writing. If you wrote this yourself, you can appeal and a person will review it.",
+    "sent": "The district held its breath as the names were drawn, and nobody in th"
+  },
+  {
+    "status": 200,
+    "guess": "ai",
+    "confidence": 0.663,
+    "model_score": 0.9962,
+    "style_score": 0.6667,
+    "combined_score": 0.8315,
+    "label": "This reads very much like AI-generated text. This is an automated guess, not proof, and it can be wrong, especially for plain or very formal writing. If you wrote this yourself, you can appeal and a person will review it.",
+    "sent": "The district held its breath as the names were drawn, and nobody in th"
+  },
+  {
+    "status": 200,
+    "guess": "ai",
+    "confidence": 0.663,
+    "model_score": 0.9962,
+    "style_score": 0.6667,
+    "combined_score": 0.8315,
+    "label": "This reads very much like AI-generated text. This is an automated guess, not proof, and it can be wrong, especially for plain or very formal writing. If you wrote this yourself, you can appeal and a person will review it.",
+    "sent": "The district held its breath as the names were drawn, and nobody in th"
+  }
+]
 ```
 
 **Diagnoses**
